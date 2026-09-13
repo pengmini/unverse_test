@@ -492,16 +492,19 @@ TOPICS.forEach((t, i) => {
   const g = new THREE.Group();
   g.position.copy(PLANET_AT[i]);
   const col = new THREE.Color(t.css);
+  const isDim = t.id === "t2";
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(1, 48, 40),
     new THREE.MeshStandardMaterial({
       map: marbleTex(t.mix), roughness: .62, metalness: .12,
-      emissive: col.clone().multiplyScalar(.16),
+      emissive: col.clone().multiplyScalar(isDim ? .06 : .16),
+      transparent: isDim,
+      opacity: isDim ? .35 : 1,
     })
   );
   mesh.userData = { topic: t.id, keep: true };
   g.add(mesh);
-  const halo = mkGlow(col, 1, .55);      // 자체 발광
+  const halo = mkGlow(col, 1, isDim ? .15 : .55);      // 자체 발광
   halo.userData.keep = true;
   g.add(halo);
   scene.add(g);
@@ -518,16 +521,19 @@ function buildSats(){
   });
   sats.forEach((sa, idx) => {
     const t = topicOf(sa.topic);
+    const isDim = sa.topic === "t2";
     const col = t._col.clone().offsetHSL((((idx * 37) % 21) - 10) / 260, 0, .06);
     const m = new THREE.Mesh(
       new THREE.SphereGeometry(1, 22, 18),
       new THREE.MeshStandardMaterial({
         map: marbleTex(t.mix, 128), roughness: .5, metalness: .1,
-        emissive: col.clone().multiplyScalar(.3),
+        emissive: col.clone().multiplyScalar(isDim ? .1 : .3),
+        transparent: isDim,
+        opacity: isDim ? .35 : 1,
       })
     );
     m.userData = { sat: sa.id };
-    const halo = mkGlow(col, 1, .5); halo.userData.sat = sa.id;
+    const halo = mkGlow(col, 1, isDim ? .15 : .5); halo.userData.sat = sa.id;
     m.add(halo);
     t._g.add(m);
     // 궤도 — 위성마다 반지름·기울기·위상·속도가 다르다
@@ -551,6 +557,7 @@ function buildSats(){
    댓글      → 작은 3D 구. 위성의 1/3 크기라 '위성에 딸린 위성'으로 오해되지 않고,
                호버로 내용을 읽을 수 있다. */
 function buildActs(sa, t){
+  const isDim = sa.topic === "t2";
   sa._stars = []; sa._notes = [];
   sa.acts.forEach((a, k) => {
     // 위성 id를 함께 섞는다 — 이걸 빼면 같은 순번의 댓글끼리 궤도가 똑같아진다
@@ -565,7 +572,9 @@ function buildActs(sa, t){
         new THREE.SphereGeometry(1, 18, 14),
         new THREE.MeshStandardMaterial({
           color: 0xFFC98A, roughness: .42, metalness: .12,
-          emissive: new THREE.Color(0xFF9E42).multiplyScalar(.5),
+          emissive: new THREE.Color(0xFF9E42).multiplyScalar(isDim ? .18 : .5),
+          transparent: isDim,
+          opacity: isDim ? .35 : 1,
         })
       );
       const glow = mkGlow(0xFFD98A, 1, 0);          // 태양이 되면 여기서 부풀린다
@@ -584,7 +593,7 @@ function buildActs(sa, t){
       t._g.add(m);
       sa._notes.push(m); noteMeshes.push(m);
     } else {
-      const st = mkGlow(0xE8F0FF, 1, .16);
+      const st = mkGlow(0xE8F0FF, 1, isDim ? .06 : .16);
       st.userData = { star:true, off, from:a.from, sun:0 };
       t._g.add(st);
       sa._stars.push(st);
@@ -766,20 +775,22 @@ function frame(now){
 
   // 주제 행성 — 위성이 늘수록 커지고 밝아진다
   TOPICS.forEach(t => {
+    const isDim = t.id === "t2";
     const n = sats.filter(s => s.topic === t.id).length;
     const R = 7.2 + Math.sqrt(n) * 1.5;
     t._R = R;                                   // 위성 궤도 계산에 쓴다
     t._mesh.scale.setScalar(R);
     if (!frozen.has(t.id)) t._mesh.rotation.y += t._spin * dt * .06;
     t._halo.scale.setScalar(R * 3.5);
-    t._halo.material.opacity = .34 + Math.min(n, 14) * .016;
-    t._mesh.material.emissiveIntensity = 1 + Math.min(n, 14) * .04;
+    t._halo.material.opacity = (isDim ? .12 : .34) + Math.min(n, 14) * (isDim ? .006 : .016);
+    t._mesh.material.emissiveIntensity = (isDim ? .35 : 1) + Math.min(n, 14) * (isDim ? .015 : .04);
   });
 
   // 위성 — 상호작용이 많을수록 크고 밝고 조금 빠르다
   const hoverSat = hovered ? satById(hovered) : null;
   sats.forEach(sa => {
     const tp = topicOf(sa.topic);
+    const isDim = sa.topic === "t2";
     const o = sa._o, k = sa.acts.length;
     const spd = o.base * (1 + Math.min(k, 12) * .06);
     if (!frozen.has(sa.topic)) sa._ang += spd * dt;    // 멈춘 행성계는 각도를 붙든다
@@ -797,8 +808,9 @@ function frame(now){
     sa._m.scale.setScalar(r);
     const lit = (hovered === sa.id ? 1 : 0) + (selected === sa.id ? .7 : 0);
     sa._halo.scale.setScalar(3.6 + lit * 2.2);
-    sa._halo.material.opacity = .34 + Math.min(k, 12) * .028 + lit * .3;
-    sa._m.material.emissiveIntensity = 1 + Math.min(k, 12) * .07 + lit * 1.2;
+    sa._halo.material.opacity = (isDim ? .12 : .34) + Math.min(k, 12) * (isDim ? .01 : .028) + lit * .3;
+    sa._m.material.opacity = isDim ? (lit > 0 ? 0.75 : 0.35) : 1;
+    sa._m.material.emissiveIntensity = (isDim ? .35 : 1) + Math.min(k, 12) * (isDim ? .02 : .07) + lit * 1.2;
 
     // 숨은 별 — 평소엔 거의 안 보이고, 위성에 올리면 켜진다
     const on = (hovered === sa.id || selected === sa.id);
@@ -822,7 +834,8 @@ function frame(now){
       const want = (r / 3) * (hot ? 1.3 : 1);
       const cur = m.scale.x + (want - m.scale.x) * .16;
       m.scale.setScalar(cur);
-      m.material.emissiveIntensity = (hot ? 2.4 : 1) + (isSun ? 3 : 0);
+      m.material.opacity = isDim ? (hot ? 0.75 : 0.35) : 1;
+      m.material.emissiveIntensity = (hot ? 2.4 : (isDim ? 0.4 : 1)) + (isSun ? 3 : 0);
       const g = m.userData.glow;
       g.position.copy(m.position);
       g.material.opacity = isSun ? Math.min(1, m.userData.sun) : 0;
@@ -833,7 +846,8 @@ function frame(now){
       s.position.copy(sa._m.position).add(s.userData.off);
       const isSun = s.userData.sun > 0;
       if (isSun) s.userData.sun = Math.min(1, s.userData.sun + dt / 900);
-      const want = isSun ? 1 : (on ? .92 : .14);
+      const baseOff = isDim ? .05 : .14;
+      const want = isSun ? 1 : (on ? .92 : baseOff);
       s.material.opacity += (want - s.material.opacity) * .14;
       // 숨은 별은 제 위성의 '절반 크기'로 보이게 한다 — 위성에 딸린 또 다른 위성처럼
       // 보이지 않도록. 스프라이트는 scale이 곧 지름이고 메시는 반지름의 두 배가
